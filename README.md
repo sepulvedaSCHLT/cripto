@@ -1,101 +1,69 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20; 
+# AQUAVAULT (WRTN) – Smart Contracts
 
-contract AQUAVAULT {
-    string public name = "AQUAVAULT";
-    string public symbol = "WRTN";
-    uint8 public decimals = 18;
-    uint256 public totalSupply = 100_000_000 * 10**uint256(decimals);
-    address public owner;
-    address public reserveWallet;
-    uint256 public maxWalletLimit;
-    mapping(address => uint256) private balances;
-    mapping(address => mapping(address => uint256)) private allowed;
+AQUAVAULT (WRTN) es un token BEP-20 desplegado en Binance Smart Chain con propósito ecológico.  
+El objetivo del proyecto es financiar la creación y mantenimiento de **reservas reales de agua potable** y, en una segunda fase, desarrollar soluciones de **enfriamiento sostenible** para centros de datos y operaciones de minería de criptomonedas.
 
-    uint256 public constant FEE_PERCENT = 2;
+> Este repositorio contiene el código del contrato inteligente y la documentación técnica del proyecto AQUAVAULT (WRTN).
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Solo el owner puede ejecutar esto");
-        _;
-    }
+---
 
-    constructor(address _reserveWallet) {
-        owner = msg.sender;
-        reserveWallet = _reserveWallet;
-        maxWalletLimit = (totalSupply * 30) / 100;
-        balances[owner] = totalSupply;
-        emit Transfer(address(0), owner, totalSupply);
-    }
+## Características del token
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+- **Red:** Binance Smart Chain (BEP-20)  
+- **Nombre:** AQUAVAULT  
+- **Símbolo:** WRTN  
+- **Suministro total:** 100,000,000 WRTN  
+- **Comisión:** 2 % de cada transacción destinada a un fondo de agua  
+- **Límite por wallet:** máximo 30 % del suministro total por dirección (excepto la wallet del owner)  
+- **Funciones de control:**  
+  - `mint` y `burn` controlados por el owner  
+  - lógica adicional de seguridad (se añadirá en la nueva versión del contrato)
 
-    function balanceOf(address account) public view returns (uint256) {
-        return balances[account];
-    }
+> ⚠️ La dirección final del contrato se añadirá aquí cuando el nuevo contrato sea desplegado de forma definitiva en BSC.
 
-    function transfer(address to, uint256 value) public returns (bool) {
-        _transfer(msg.sender, to, value);
-        return true;
-    }
+---
 
-    function approve(address spender, uint256 value) public returns (bool) {
-        allowed[msg.sender][spender] = value;
-        emit Approval(msg.sender, spender, value);
-        return true;
-    }
+## Estructura del repositorio
 
-    function allowance(address _owner, address spender) public view returns (uint256) {
-        return allowed[_owner][spender];
-    }
+Actualmente el repositorio incluye:
 
-    function transferFrom(address from, address to, uint256 value) public returns (bool) {
-        require(allowed[from][msg.sender] >= value, "No autorizado");
-        allowed[from][msg.sender] -= value;
-        _transfer(from, to, value);
-        return true;
-    }
+- `tokenaquavault.sol` – versión actual del contrato del token AQUAVAULT (WRTN)  
+- `tokenproject.sol` – otros experimentos / contratos anteriores  
+- `whitepaper_aquavault_wrtn.pdf` – whitepaper del proyecto  
+- `logo_32x32.svg`, `logo_aquavault_fixed_32x32.svg` – recursos gráficos del token  
 
-    function _transfer(address from, address to, uint256 value) internal {
-        require(to != address(0), "Direccion invalida");
-        require(balances[from] >= value, "Fondos insuficientes");
+En futuras versiones se organizará en:
 
-        uint256 fee = (value * FEE_PERCENT) / 100;
-        uint256 amountAfterFee = value - fee;
+- `contracts/` – contratos inteligentes en Solidity  
+- `docs/` – documentación y whitepaper  
+- `assets/` – logos y material gráfico
 
-        balances[from] -= value;
-        balances[to] += amountAfterFee;
-        balances[reserveWallet] += fee;
+---
 
-        if (to != owner) {
-            require(balances[to] <= maxWalletLimit, "Supera el limite permitido por wallet");
-        }
+## Objetivo del proyecto
 
-        emit Transfer(from, to, amountAfterFee);
-        emit Transfer(from, reserveWallet, fee);
-    }
+1. **Fondo de agua potable**  
+   - Un porcentaje de cada transacción se envía a un fondo de agua.  
+   - Este fondo está destinado a financiar proyectos de captación, almacenamiento y potabilización en zonas de alta necesidad.
 
-    function mint(address to, uint256 amount) public onlyOwner {
-        require(to != address(0), "Direccion invalida");
-        totalSupply += amount;
-        balances[to] += amount;
-        emit Transfer(address(0), to, amount);
-    }
+2. **Enfriamiento sostenible para infraestructuras blockchain**  
+   - En una segunda fase, las reservas de agua se integrarán en sistemas de enfriamiento para centros de datos y minería, buscando reducir la huella hídrica y energética del ecosistema cripto.
 
-    function burn(uint256 amount) public onlyOwner {
-        require(balances[msg.sender] >= amount, "Fondos insuficientes");
-        balances[msg.sender] -= amount;
-        totalSupply -= amount;
-        emit Transfer(msg.sender, address(0), amount);
-    }
+---
 
-    function transferOwnership(address newOwner) public onlyOwner {
-        require(newOwner != address(0), "Direccion invalida");
-        owner = newOwner;
-    }
+## Enlaces oficiales
 
-    function updateReserveWallet(address newWallet) public onlyOwner {
-        require(newWallet != address(0), "Direccion invalida");
-        reserveWallet = newWallet;
-    }
-}
+- Sitio web: _próximamente_  
+- X (Twitter): https://x.com/AQUAVAULT_WRTN  
+- LinkedIn: página de empresa **AQUAVAULT (WRTN)**  
+- Telegram: _próximamente_  
+
+Cuando el sitio web y los demás canales estén disponibles de forma definitiva, se actualizarán estos enlaces.
+
+---
+
+## Aviso
+
+Este repositorio y su contenido tienen fines exclusivamente informativos y educativos.  
+Nada de lo aquí publicado constituye asesoría financiera ni invitación a invertir.  
+Haz siempre tu propia investigación (**DYOR**) y comprende los riesgos asociados a las criptomonedas.
