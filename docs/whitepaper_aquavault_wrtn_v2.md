@@ -34,153 +34,194 @@ Los objetivos principales son:
 - **Símbolo:** WRTN  
 - **Red:** Binance Smart Chain – estándar BEP-20  
 - **Decimales:** 18  
-- **Suministro inicial:** 100.000.000 WRTN  
+- **Suministro máximo fijo:** 200.000.000 WRTN  
+- **Emisión adicional:** no existe función de mint posterior al despliegue (supply cerrado).  
 - **Tipo de contrato:** Token BEP-20 no actualizable (no proxy / no upgradeable)
+
+El suministro total se crea en el momento del despliegue y se distribuye según la tokenomics definida. A partir de ese punto no se pueden generar nuevos WRTN; el token solo puede volverse deflacionario mediante quema voluntaria.
+
+---
 
 ### 3.2 Límite por wallet (anti-ballenas)
 
 Con el fin de reducir riesgos de manipulación extrema de mercado y concentraciones excesivas, el contrato implementa una lógica de límite por wallet:
 
-- **Límite máximo duro:** ninguna wallet (excepto la del owner o direcciones exentas) puede superar el **30 %** del suministro total.
-- El owner puede **ajustar dinámicamente el porcentaje máximo permitido** hacia arriba o hacia abajo en caso de necesitar más descentralización o mayor flexibilidad de liquidez, **pero nunca puede superar el 30 %**.
-- Este límite se aplica a transferencias y recepciones de tokens cuando la funcionalidad está habilitada.
+- **Límite máximo duro:** ninguna wallet externa puede superar el **30 %** del suministro total.
+- El owner puede **ajustar dinámicamente el porcentaje máximo permitido**, hacia arriba o hacia abajo, **pero nunca puede superar el 30 %** (tope duro codificado en el contrato).
+- Este límite se aplica únicamente a **wallets externas**; pueden ser excluidas del límite:
+  - La wallet del owner,
+  - La wallet de reserva de agua,
+  - La pool de liquidez principal,
+  - Otras wallets internas del proyecto (tesorería, marketing, desarrollo, etc.) marcadas explícitamente.
 
-### 3.3 Comisión del 2 % (fee ecológico)
+El objetivo es evitar que una sola wallet externa acumule una porción desproporcionada del supply, reduciendo el riesgo de dumps masivos y manipulación de precio.
 
-Cada transferencia de WRTN puede estar sujeta a un **fee del 2 %**, destinado a un fondo para proyectos de agua potable:
+---
 
-- **Porcentaje de fee:** 2 % del monto transferido.
-- **Destino del fee:** una wallet específica asignada al **Fondo de Reservas de Agua**.
-- La comisión se descuenta automáticamente de la transacción cuando la funcionalidad de fee está habilitada.
-- Ciertas direcciones (por ejemplo, el propio fondo, direcciones técnicas o de liquidez) pueden ser marcadas como **exentas de fee**, para no penalizar operaciones críticas.
+### 3.3 Comisión ecológica (fee 0–2 %)
 
-Cuando el fee está desactivado, las transferencias funcionan como un BEP-20 estándar sin comisión adicional.
+Cada transferencia de WRTN puede estar sujeta a un **fee ecológico** destinado al Fondo de Reservas de Agua.
 
-### 3.4 Funciones de emisión y quema (mint / burn)
+- **Rango de fee permitido:** entre **0 % y 2 %** (0–200 basis points).  
+- **Valor objetivo de operación:** 2 % destinado al Fondo de Reserva de Agua.  
+- **Destino del fee:** una wallet específica asignada al **Fondo de Reservas de Agua**.  
+- **Exenciones:** ciertas direcciones (por ejemplo, la propia wallet de reserva, direcciones técnicas o de liquidez) pueden ser marcadas como **exentas de fee**, para no penalizar operaciones críticas.
 
-El diseño del suministro de WRTN combina seguridad, flexibilidad controlada y participación de la comunidad:
+El propio contrato impide cualquier valor de fee superior al 2 %: no es posible establecer comisiones confiscatorias más allá de ese límite.
 
-- **Mint (creación de tokens):**
-  - Solo el **owner** del contrato puede crear nuevos tokens.
-  - La función se utiliza para financiar fases posteriores del proyecto, siempre bajo una política transparente documentada.
-  - Todos los eventos de mint quedan registrados on-chain.
+Cuando el fee está configurado en 0 %, las transferencias se comportan como un BEP-20 estándar sin comisión adicional.
 
-- **Burn por parte de los usuarios:**
-  - **Cualquier titular de WRTN** puede quemar voluntariamente sus propios tokens.
-  - Esto reduce el suministro circulante y puede aumentar la escasez del activo.
+---
+
+### 3.4 Funciones de quema (burn)
+
+El diseño del suministro de WRTN está orientado a la seguridad y la deflación voluntaria:
+
+- **No existe mint posterior al despliegue:**
+  - Todo el suministro (200.000.000 WRTN) se crea en el constructor del contrato.
+  - No hay función pública de creación de nuevos tokens.
+
+- **Burn por parte de los usuarios (deflación voluntaria):**
+  - **Cualquier titular de WRTN** puede quemar voluntariamente sus propios tokens mediante una función pública `burn()`.
+  - Esto reduce el suministro circulante y el suministro total.
   - La lógica de burn está diseñada para que *solo* el dueño de los tokens pueda destruirlos; no se permite quemar fondos ajenos.
 
-- **Burn desde el owner (si se utiliza):**
-  - El owner puede quemar tokens desde su propia posición de tesorería para ajustar la tokenomics si fuera necesario.
-  - Esta acción también queda registrada en el historial on-chain.
+Este enfoque convierte a WRTN en un activo con **supply fijo máximo y potencialmente deflacionario**, dependiendo del comportamiento de los holders y de las posibles campañas de quema que el propio proyecto pueda incentivar.
 
-> Nota: Aunque en testnet se han realizado pruebas de mint y burn para validar la lógica, en mainnet las políticas de emisión y quema se documentarán públicamente (whitepaper, web y repositorio) antes de ser ejecutadas.
+---
 
-### 3.5 Pausa de transfers (Pausable)
+### 3.5 Cambio de direcciones críticas
 
-El contrato incorpora una funcionalidad de **pausa global** de transferencias:
+Para gestionar el proyecto a largo plazo y aumentar la robustez operativa durante la fase inicial, el contrato permite:
 
-- En caso de emergencia (fallo crítico, ataque, incidente regulatorio), el owner puede pausar las transferencias.
-- Mientras el contrato está en pausa:
-  - No se pueden mover tokens entre wallets (salvo excepciones estrictamente necesarias si se definieron).
-- Cuando el riesgo desaparece, se puede **reanudar** la operativa.
-- Todas las acciones de pausa y reanudación quedan registradas on-chain.
+- **Actualizar la wallet del Fondo de Reservas de Agua**  
+  (por ejemplo, si se migra a una multisig o a una entidad regulada).
+- **Registrar la dirección de la pool de liquidez principal**  
+  (por ejemplo, el par WRTN/BNB en PancakeSwap) y excluirla del límite por wallet para garantizar la operativa normal del mercado.
+- **Marcar wallets internas del proyecto** como excluidas de:
+  - Fee (para evitar comisiones en operaciones de tesorería, liquidez, etc.),
+  - Límite por wallet (para permitir una gestión estructurada de reservas y fondos internos).
 
-Esta función actúa como un “cortacircuitos” de seguridad para proteger a los usuarios.
-
-### 3.6 Cambio de direcciones críticas
-
-Para gestionar el proyecto a largo plazo y aumentar la robustez operativa, el contrato permite:
-
-- **Actualizar la wallet del Fondo de Reservas de Agua** (por ejemplo, si se migra a una multisig o a una entidad regulada).
-- **Transferir la propiedad del contrato** a otra entidad (por ejemplo, una fundación o DAO en etapas posteriores).
-
-Estos cambios solo pueden ser ejecutados por el owner vigente y generan eventos on-chain verificables.
+Estos cambios solo pueden ser ejecutados por el owner durante la fase ajustable y generan eventos on-chain verificables.
 
 ---
 
 ## 4. Tokenomics del Proyecto
 
-### 4.1 Flujo de la comisión del 2 %
+### 4.1 Flujo de la comisión ecológica
 
-El 2 % de fee se orienta a financiar proyectos reales de agua potable. Un esquema simplificado:
+El fee se orienta a financiar proyectos reales de agua potable. Un esquema simplificado:
 
-1. Usuario A envía WRTN a Usuario B.  
+1. El Usuario A envía WRTN al Usuario B.  
 2. Del monto total:
-   - 98 % llega a B.
-   - 2 % se redirige a la **wallet del Fondo de Reservas de Agua**.
+   - Una parte llega al receptor (por ejemplo, 98 % si el fee está en 2 %).
+   - La fracción correspondiente al fee (por ejemplo, 2 %) se redirige a la **wallet del Fondo de Reservas de Agua**.
 3. Los fondos acumulados en esa wallet se destinan a:
    - Diseño y construcción de reservas de agua potable.
    - Mantenimiento, operación y auditoría de las infraestructuras.
    - Iniciativas complementarias (educación, tecnología, estudios de impacto).
 
-Cuando el fee está deshabilitado, este flujo se detiene temporalmente y las transferencias se realizan al 100 % sin comisión.
-
-### 4.2 Distribución inicial (ejemplo de referencia)
-
-La distribución exacta para mainnet será publicada oficialmente, pero un esquema razonable de referencia podría ser:
-
-- **Tesorería del proyecto**: reservas para desarrollo, partnerships y expansión.
-- **Liquidez en DEX/CEX**: tokens destinados a pools de liquidez para facilitar la libre negociación.
-- **Programa comunitario**: incentivos a largo plazo para holders, comunidad y colaboradores.
-- **Fondo de desarrollo tecnológico**: evolución del ecosistema AQUAVAULT (integración con oráculos, dApps, etc.).
-
-> En testnet, los montos y movimientos actuales solo tienen fines de prueba y no representan la tokenomics final de producción.
+Si el fee se ajusta a 0 %, este flujo se detiene y todas las transferencias se realizan al 100 % sin comisión, conservando la lógica de límite por wallet.
 
 ---
 
-## 5. Roadmap (alto nivel)
+### 4.2 Distribución inicial del suministro
 
-### Fase 1 – Fundamentos técnicos y pruebas (completado / en curso)
+La distribución base, sobre un suministro máximo de **200.000.000 WRTN**, está planteada de forma que equilibre sostenibilidad financiera, liquidez de mercado y capacidad de ejecución del proyecto:
 
-- Diseño y desarrollo del contrato BEP-20 de AQUAVAULT (WRTN).
-- Pruebas en testnet:
-  - Límite por wallet.
-  - Fee del 2 % y exenciones.
-  - Mint, burn, pausa y reanudación.
-- Publicación del código en GitHub con documentación técnica básica.
-- Creación del whitepaper y README del repositorio.
+- **Fondo de Reserva de Agua – 50 % (100.000.000 WRTN)**  
+  Financia proyectos de agua potable y sostenibilidad ambiental.
 
-### Fase 2 – Lanzamiento en mainnet y primeros proyectos
+- **Liquidez Inicial – 20 % (40.000.000 WRTN)**  
+  Provisión de liquidez en DEX/CEX para facilitar la libre negociación y reducir volatilidad excesiva.
 
-- Auditoría externa (cuando el presupuesto lo permita).
-- Despliegue del contrato en Binance Smart Chain mainnet.
-- Creación de liquidez inicial en DEX.
-- Selección y anuncio del **primer proyecto de reserva de agua**.
-- Dashboard público para seguir el uso de fondos recaudados por el fee.
+- **Marketing y Promoción – 15 % (30.000.000 WRTN)**  
+  Campañas de adopción, listados, alianzas estratégicas y presencia de marca en el ecosistema cripto y ecológico.
 
-### Fase 3 – Expansión y utilidad tecnológica
+- **Desarrollo Tecnológico – 10 % (20.000.000 WRTN)**  
+  Evolución del contrato inteligente, integraciones Web3, herramientas de monitoreo y futuros desarrollos de infraestructura tecnológica asociada al agua.
 
-- Integración de AQUAVAULT con infraestructuras de enfriamiento sostenible para servidores y/o minería.
-- Nuevos partnerships con proyectos ecológicos y tecnológicos.
-- Evaluación de gobernanza futura (DAO o estructura híbrida) para la toma de decisiones sobre fondos y roadmap.
+- **Fondo de Emergencia – 5 % (10.000.000 WRTN)**  
+  Auditorías, seguridad, mitigación de incidentes y contingencias operativas.
 
----
+La asignación exacta en mainnet y los movimientos relevantes de estas wallets se documentarán en:
 
-## 6. Riesgos y Consideraciones
-
-A pesar de las medidas técnicas implementadas, AQUAVAULT (WRTN) no está exento de riesgos:
-
-- **Riesgo de mercado:** el precio del token puede ser altamente volátil.
-- **Riesgo regulatorio:** cambios normativos en diferentes países pueden afectar al proyecto.
-- **Riesgo operativo:** mala ejecución de proyectos de agua en el mundo real podría reducir el impacto esperado.
-- **Riesgo tecnológico:** vulnerabilidades no detectadas en el contrato o en infraestructuras de terceros.
-
-Los usuarios deben realizar su propia investigación (**DYOR**) y comprender que AQUAVAULT no ofrece rentabilidades garantizadas ni constituye asesoría financiera.
+- Sitio web oficial,  
+- Whitepaper,  
+- Repositorio de GitHub,  
+- Canales de comunicación del proyecto.
 
 ---
 
-## 7. Conclusión
+## 5. Gobernanza del contrato inteligente
 
-AQUAVAULT (WRTN) es un token BEP-20 diseñado para unir el ecosistema cripto con proyectos reales de impacto en el acceso al agua potable y, en fases posteriores, con la infraestructura tecnológica que se beneficia de este recurso.
+### 5.1 Modelo de dos fases
 
-El contrato combina:
+El contrato de AQUAVAULT (WRTN) ha sido diseñado con un modelo de gobernanza en **dos fases**:
 
-- Mecanismos anti-ballenas (límite por wallet ajustable con tope 30 %),
-- Un fee del 2 % orientado a un fondo ecológico,
-- Capacidades de mint y burn controladas,
-- Funciones de pausa y actualización de wallets críticas,
+1. Una **fase ajustable inicial**, donde el owner dispone de un margen controlado para ajustar parámetros clave dentro de límites estrictos ya codificados.
+2. Una fase final de **inmutabilidad total**, lograda mediante la llamada a `renounceOwnership()`, que deja el contrato sin propietario y sin capacidad de modificación administrativa.
 
-todo ello con el objetivo de ofrecer un activo transparente, verificable on-chain y orientado a un propósito ambiental concreto.
+Este enfoque busca combinar flexibilidad responsable en el arranque con máxima confianza a largo plazo para holders e inversores.
 
-Este whitepaper se actualizará conforme el proyecto avance, se incorporen auditorías externas y se concreten los primeros proyectos físicos de reservas de agua financiados por AQUAVAULT (WRTN).
+---
+
+### 5.2 Parámetros ajustables (con límites codificados)
+
+Mientras exista un `owner` activo, se pueden ajustar solo los siguientes parámetros, siempre dentro de rangos definidos en el código:
+
+- **Fee de transacción (0 % – 2 %)**  
+  - Parámetro: `feeBasisPoints` (basis points; 100 = 1 %, 200 = 2 %).  
+  - Rango permitido: **0 a 200 bps**.  
+  - El contrato **rechaza cualquier intento** de establecer un fee superior al 2 %.
+
+- **Límite de posesión por wallet (0 % – 30 % del suministro)**  
+  - Parámetro: `maxWalletBps`.  
+  - Tope duro codificado: 3.000 bps = **30 %** del suministro total.  
+  - El owner puede reducir o incrementar el límite dentro de este rango, pero nunca sobrepasar el 30 %.
+
+- **Wallet de reserva y wallets internas**  
+  - `setReserveWallet()` define la dirección donde se acumula el fee ecológico.  
+  - `setLiquidityPool()` marca la pool de liquidez principal y la excluye del límite por wallet.  
+  - `setExcludedFromFees()` y `setExcludedFromMaxWallet()` permiten declarar wallets internas que no deben pagar fee o no deben estar sujetas al límite por wallet (tesorería, marketing, desarrollo, etc.).
+
+Incluso durante esta fase, se mantienen dos garantías clave:
+
+- El **suministro máximo de 200.000.000 WRTN no puede aumentar**.  
+- **Cualquier holder** puede quemar sus tokens mediante `burn()`, reduciendo el supply total.
+
+---
+
+### 5.3 Fase ajustable (“bootstrapping phase”)
+
+La fase ajustable corresponde al período en el que el equipo de AQUAVAULT:
+
+- Configura y prueba:
+  - Fee de transacción dentro del rango 0–2 %,
+  - Límite de tenencia por wallet dentro del rango 0–30 %,
+  - Wallet de reserva, liquidez y wallets internas.
+- Observa el comportamiento real del mercado y el impacto del fee ecológico.
+- Corrige, si es necesario, desajustes iniciales siempre bajo las restricciones definidas en el contrato.
+
+Todos los cambios administrativos realizados en esta etapa:
+
+- Quedan registrados on-chain y son visibles en BscScan.
+- Se comunicarán en los canales oficiales del proyecto (web, GitHub, redes sociales).
+
+El objetivo no es mutar arbitrariamente la tokenomics, sino **afinarla en producción** antes de fijarla para siempre.
+
+---
+
+### 5.4 Renuncia a la propiedad e inmutabilidad
+
+Cuando:
+
+- El fee de transacción se haya validado como sostenible,
+- El límite máximo por wallet externa esté definido,
+- La configuración de wallets internas y liquidez esté consolidada,
+
+el equipo ejecutará la función:
+
+```solidity
+renounceOwnership()
+
